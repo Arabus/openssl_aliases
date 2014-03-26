@@ -1,0 +1,71 @@
+# Some useful functions for bash, sed, openssl and awk to manage certs and a small CA
+
+alias sslx='openssl x509'
+alias sslr='openssl req'
+alias sslp='openssl pkcs12'
+
+# print out specific pem encoded certificate information
+#
+# -i prints the certificate issuer
+# -s mycert.pem prints the certificate subject
+# -d mycert.pem prints the validity dates
+# -e mycert.pem prints the x509v3 extensions (e.g. subjectAltName)
+# 
+# noargument simply prints the text version of the cert
+sslcat() {
+  local arg=$1
+  if [ $# -gt 1 ]; then shift; fi
+
+  if [[ '-d' == $arg ]]; then
+    openssl x509 -in "$1" -noout -dates
+  elif [[ '-e' == $arg ]]; then
+    openssl x509 -in "$1" -noout -text | awk '/X509v3 extensions:/,/Signature Algorithm/' | sed -e 's|        ||'
+  elif [[ '-s' == $arg ]]; then
+    openssl x509 -in "$1" -noout -subject
+  elif [[ '-i' == $arg ]]; then
+    openssl x509 -in "$1" -noout -issuer
+  else
+    openssl x509 -in "$1" -noout -text
+  fi
+  }
+
+# Print the text version of a pem encoded certificate signing request
+reqtxt() {
+  openssl req -in "$1" -noout -text
+  }
+
+# Print the subject of a pem encoded certificate signing request
+reqsub() {
+  openssl req -in "$1" -noout --subject
+  }
+
+# Create a new pem encoded certificate signing request from a pem encoded certificate
+# Requires the private key as second argument to sign the request
+reqre() {
+  openssl x509 -x509toreq -in "$1" -signkey "$2" -out "${1%.*}.csr"
+  }
+
+# Convert a pem encoded certificate and key to pkcs12 format
+# Requires the private key as second argument to aggregate into the new format
+pem2pkcs() {
+  openssl pkcs12 -export -out "${1%.*}.pfx" -inkey "$2" -in "$1" -certfile "$3"
+  }
+
+# Convert a pkcs12 encoded certificate to pem encoded key and certificate
+# Both key and cert will be in the same file
+pkcs2pem() {
+  openssl pkcs12 -in "$1" -out "${1%.*}.pem" -nodes
+  }
+
+# Create a selfsigned ssl certificate with a 4096 bit RSA key
+sslselfsign() {
+  openssl req -x509 -nodes -days 730 -newkey rsa:4096 -keyout "${1}.key" -out "${1}.crt"
+  }
+
+# Compare if a private key and certificate belong to each other
+# This only compare moduluses which should suffice but remember md5sums can collide
+sslmodcompare() {
+  local certmd5=$(openssl x509 -in "$1" -noout -modulus | md5sum)
+  local keymd5=$(openssl rsa -in "$2" -noout -modulus | md5sum)
+  [[ $certmd5 == $keymd5 ]] && echo "$?"
+  }
