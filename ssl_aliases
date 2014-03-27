@@ -29,6 +29,25 @@ sslcat() {
   fi
   }
 
+# Generate a new RSA key with 4096 bits and corresponding certificate request
+# Will also generate a private key (REMEMBER THE PASSPHRASE OR WRITE IT DOWN)
+newrsareq() {
+  openssl req -new -newkey rsa:4096 -out "${1}.csr" -keyout "${1}.key.pem" -sha256
+  }
+
+# Generate a 1024 bit DSA key and corresponding certificate request
+newdsareq() {
+  openssl dsaparam -noout -out "${1}.key.pem" -genkey 1024
+  openssl req -new -key "${1}.key.pem" -out "${1}.csr" -sha256
+  }
+
+# Generate a 256 bit elliptic curve key and corresponding certificate request
+# You might want to switch the curve depending on your security needs (e.g. distrust the NSA)
+newecreq() {
+  openssl ecparam -out "${1}.key.pem" -name 'prime256v1' -genkey
+  openssl req -new -key "${1}.key.pem" -out "${1}.csr" -sha256
+  }
+
 # Print the text version of a pem encoded certificate signing request
 reqtxt() {
   openssl req -in "$1" -noout -text
@@ -59,7 +78,7 @@ pkcs2pem() {
 
 # Create a selfsigned ssl certificate with a 4096 bit RSA key
 sslselfsign() {
-  openssl req -x509 -nodes -days 730 -newkey rsa:4096 -keyout "${1}.key" -out "${1}.crt"
+  openssl req -x509 -nodes -days 730 -sha256 -newkey rsa:4096 -keyout "${1}.key.pem" -out "${1}.crt.pem"
   }
 
 # Compare if a private key and certificate belong to each other
